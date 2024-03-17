@@ -1,0 +1,9 @@
+[project]
+name = "Xray_winds"
+dependencies = ["numpy", "matplotlib", "starwinds_readplt"]
+version = "0.0.1"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backed = "setuptools.build_meta"
+readme = "README.md"
