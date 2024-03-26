@@ -3,5 +3,7 @@ This package allows the user to read and extract data from .plt files of stellar
 
 ## Instalation
 After cloning the package in a project directory you can use the following terminal commands to install the package:
+'''bash
 cd <project>
 pip install ./Xray_winds 
+'''
