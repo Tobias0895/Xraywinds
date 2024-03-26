@@ -1,5 +1,1 @@
-Calculate_flux
-Grid_Operations
-Star_class
-__init__
-load_data
+Xray_winds

@@ -1,11 +1,11 @@
 README.md
 pyproject.toml
 setup.py
-src/Calculate_flux.py
-src/Grid_Operations.py
-src/Star_class.py
-src/__init__.py
-src/load_data.py
+src/Xray_winds/Calculate_flux.py
+src/Xray_winds/Grid_Operations.py
+src/Xray_winds/Star_class.py
+src/Xray_winds/__init__.py
+src/Xray_winds/load_data.py
 src/Xray_winds.egg-info/PKG-INFO
 src/Xray_winds.egg-info/SOURCES.txt
 src/Xray_winds.egg-info/dependency_links.txt
