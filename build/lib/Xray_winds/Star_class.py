@@ -1,16 +1,14 @@
-from gc import disable
-import matplotlib
-import load_data
+import Xray_winds.load_data as load_data
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib as mpl
-import Calculate_flux
+import Xray_winds.Calculate_flux as Calculate_flux
 
 class star_model():
 
-    def __init__(self, name, interpolation='nearest'):
+    def __init__(self, name, interpolation='nearest', verbose=False):
         self.name = name
-        data = load_data.import_data(self.name, interpolate=interpolation)
+        data = load_data.import_data(self.name, interpolate=interpolation, verbose=verbose)
         self.interpolator = data[0] 
         self.var_list = data[1]
         self.params = data[2]
@@ -42,7 +40,6 @@ class star_model():
             mesh = (mesh[0]/self.params['RadiusStar'], mesh[1]/self.params["RadiusStar"])
             vmax = np.nanmax(lum)
             norm = LogNorm(vmax=vmax, vmin=vmax/1e6, clip=True)
-            print(type(ax))
             quadmesh = ax.pcolormesh(mesh[0], mesh[1], lum, 
                                     norm=norm)
             
@@ -131,50 +128,40 @@ class star_model():
                                                              var_list=self.var_list, angle=(0., ang))
         return angles, fluxes
     
-    def lum_x(self, image_radius=20, pixel_count=200, wvl_bin=(0.1,180), grid_type='linear', *args, **kwargs):
-        import Grid_Operations
+    def lum_x(self, image_radius=20, pixel_count=200, wvl_bin=(0.1,180), grid_type='linear', nseg=2, *args, **kwargs):
+        import Xray_winds.Grid_Operations as Grid_Operations
         if grid_type =='segmented':
-            (X, Y ,Z), _ = Grid_Operations.create_grid(image_radius, pixel_count/2, type='linear') # outer grid, large structures so we do not need much detail -> lower pixel count
-            (X_prime, Y_prime, Z_prime), _ = Grid_Operations.create_grid(image_radius/3, pixel_count, type='linear') # inner grid smaller structures 
-
-            # The star is only present in the middel grid so we do not have to mask the star in the outer grid
-            mask_star = X_prime ** 2 + Y_prime ** 2 + Z_prime ** 2 <= self.params['RadiusStar'] ** 2
-            inner_mask = mask_star
+            grid, x= Grid_Operations.create_grid(image_radius * self.params['RadiusStar'], pixel_count, 'linear')
+            segments = Grid_Operations.up_center_res(grid)
+            if nseg > 1: # If we want to segment the grid more then once
+                i = 1
+                while i < nseg:
+                    middle = segments.pop(-1)
+                    segments_inner = Grid_Operations.up_center_res(middle)
+                    segments += segments_inner
+                    i+=1
             
-            inner_masked_in_outer =  (X < image_radius/3) * (Y < image_radius/3) * (Z < image_radius/3) \
-                * (-image_radius/3 < X) * (-image_radius/3 < Y) * (-image_radius/3 < Z)
-            interpolated_inner = self.interpolator(X_prime, Y_prime, Z_prime)
-            interpolated_outer = self.interpolator(X, Y, Z)
+            total_X = []
+            for segment in segments:
+                X, Y, Z = segment
 
-            integrand_inner = np.square(interpolated_inner[...,self.var_list.index('Rho [g/cm^3]')] / 1.67e-24) * Calculate_flux.G(interpolated_inner[...,self.var_list.index('te [K]')], wvl_bin, *args, **kwargs)
-            integrand_outer = np.square(interpolated_outer[...,self.var_list.index('Rho [g/cm^3]')] / 1.67e-24) * Calculate_flux.G(interpolated_outer[...,self.var_list.index('te [K]')], wvl_bin, *args, **kwargs)
-            
-            masked_integrand_outer = np.where(inner_masked_in_outer==False, integrand_outer, 0)
-            masked_integrand_inner = np.where(inner_mask==False, integrand_inner, 0)
+                star_mask = X ** 2 + Y ** 2 + Z ** 2 <= self.params['RadiusStar'] ** 2
+                interpolated_data = self.interpolator(X, Y, Z)
+                integrand = np.square(interpolated_data[...,self.var_list.index('Rho [g/cm^3]')] / 1.67e-24) * Calculate_flux.G(interpolated_data[...,self.var_list.index('te [K]')], wvl_bin)
+                masked_integrand = np.where(star_mask==False, integrand, 0)
 
-            # We want to take into account that light that goes towards the star can't be accounted fors
-            Area_of_star = np.square(self.params['RadiusStar']) * np.pi 
-            # Creating an array in the shape of the data to calculate the solid angle of the star at each point
-            solid_angle_array_outer = Area_of_star / (X**2 + Y**2 + Z**2)
-            solid_angle_array_inner = Area_of_star / (X_prime**2 + Y_prime**2 + Z_prime**2)
+                area_of_star =  np.square(self.params['RadiusStar']) * np.pi
+                solid_angle_array = area_of_star / (X ** 2 + Y ** 2 + Z ** 2)
+                fraction_light = 1 - (solid_angle_array / (4*np.pi))
+                masked_integrand *= fraction_light
 
-            # The fraction of the sky taken up by the star at a point is then solid_angle / 4pi
-            # So the fraction light that escapes is 1 - solid_angle/4pi
-            fraction_usable_light_outer = 1 - (solid_angle_array_outer / (4*np.pi))
-            fraction_usable_light_inner = 1 - (solid_angle_array_inner / (4*np.pi))
+                projection = np.trapz(masked_integrand, X, axis=0)
 
-            masked_integrand_inner *= fraction_usable_light_inner
-            masked_integrand_outer *= fraction_usable_light_outer
+                one_d = np.trapz(projection, Y[0,:,:], axis=0)
+                tot = np.trapz(one_d, Z[0, 0, :])
+                total_X.append(tot)
 
-            two_d_inner = np.trapz(masked_integrand_inner, X_prime, axis=1)
-            one_d_inner = np.trapz(two_d_inner, Z_prime[:, 0, :], axis=-1)
-            tot_inner = np.trapz(one_d_inner, Z_prime[:, 0, :][0])
-
-            two_d_outer = np.trapz(masked_integrand_outer, X, axis=1)
-            one_d_outer = np.trapz(two_d_outer, Z[:, 0, :], axis=-1)
-            tot_outer = np.trapz(one_d_outer, Z[:, 0, :][0])
-
-            self.total_lum = tot_inner + tot_outer
+            return np.sum(total_X)
         else:
             # We first create a 3D meshgrid
             image_radius *= self.params['RadiusStar']
@@ -182,7 +169,7 @@ class star_model():
             # Interpolate the data on that grid
             interpolated_data = self.interpolator(X, Y, Z)
             # From the mesh grid create a mask that removes the star
-            mask = X ** 2 + Y** 2 + Z ** 2 <= self.params['RadiusStar'] ** 2
+            mask = X ** 2 + Y ** 2 + Z ** 2 <= self.params['RadiusStar'] ** 2
 
             integrand = np.square(interpolated_data[...,self.var_list.index('Rho [g/cm^3]')] / 1.67e-24) * Calculate_flux.G(interpolated_data[...,self.var_list.index('te [K]')], wvl_bin, *args, **kwargs)
             masked_integrand = np.where(mask==False, integrand, 0)
@@ -196,10 +183,9 @@ class star_model():
             # So the fraction light that escapes is 1 - solid_angle/4pi
             fraction_usable_light =  1 - (solid_angle_array / (4*np.pi))
             masked_integrand *= fraction_usable_light
-
-            two_d = np.trapz(masked_integrand, X, axis=1)
-            one_d = np.trapz(two_d, Z[:, 0, :], axis=-1)
-            self.total_lum= np.trapz(one_d, Z[:, 0, :][0])
+            two_d = np.trapz(masked_integrand, X, axis=0)
+            one_d = np.trapz(two_d, Y[0,:,:], axis=-1)
+            self.total_lum= np.trapz(one_d, Z[0, 0, :])
         return self.total_lum
     
     def B_field(self):

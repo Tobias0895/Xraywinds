@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 import Grid_Operations
 
@@ -59,7 +58,7 @@ def projection_2d(wvl_bin: tuple, stellar_radius: float, interpolator, var_list:
         inner_mask = mask_star + mask_shadow
         
         inner_masked_in_outer =  (X < image_radius/3) * (Y < image_radius/3) * (Z < image_radius/3) \
-             * (-image_radius/3 < X) * (-image_radius/3 < Y) * (-image_radius/3 < Z)
+            * (-image_radius/3 < X) * (-image_radius/3 < Y) * (-image_radius/3 < Z)
         interpolated_inner = interpolator(Xprime_rot, Yprime_rot, Zprime_rot)
         interpolated_outer = interpolator(X_rot, Y_rot, Z_rot)
 

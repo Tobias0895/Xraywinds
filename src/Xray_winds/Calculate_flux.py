@@ -1,10 +1,6 @@
-
-from email.mime import image
-from tkinter import Grid
 import numpy as np
-import matplotlib.pyplot as plt
 from tqdm import tqdm
-import Grid_Operations
+import Xray_winds.src.Xray_winds.Grid_Operations as Grid_Operations
 
 __all__ = ['find_nearest', 'simple_g', 'G', 'projection_2d', 'total_lum_wvl_bin',
            'create_list_of_tuples', 'create_spectra']

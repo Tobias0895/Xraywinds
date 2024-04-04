@@ -1,11 +1,11 @@
-from gc import disable
-import matplotlib
-import load_data
+# import Xray_winds.load_data as load_data
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib as mpl
-import Calculate_flux
-from make_movie import make_rotation_lightcurve_frame
+# import Xray_winds.Calculate_flux as Calculate_flux
+import Xray_winds.src.Xray_winds.load_data as load_data
+import Xray_winds.src.Xray_winds.Grid_Operations as Grid_Operations
+import Xray_winds.src.Xray_winds.Calculate_flux as Calculate_flux
 
 class star_model():
 
@@ -132,36 +132,35 @@ class star_model():
         return angles, fluxes
     
     def lum_x(self, image_radius=20, pixel_count=200, wvl_bin=(0.1,180), grid_type='linear', nseg=2, *args, **kwargs):
-        import Grid_Operations
         if grid_type =='segmented':
             grid, x= Grid_Operations.create_grid(image_radius * self.params['RadiusStar'], pixel_count, 'linear')
-            segments, centers = Grid_Operations.up_center_res(grid)
-            if nseg > 1:
+            segments = Grid_Operations.up_center_res(grid)
+            if nseg > 1: # If we want to segment the grid more then once
                 i = 1
                 while i < nseg:
                     middle = segments.pop(-1)
-                    segments_inner, centers_inner = Grid_Operations.up_center_res(middle)
-                    centers += centers_inner
+                    segments_inner = Grid_Operations.up_center_res(middle)
                     segments += segments_inner
                     i+=1
             
             total_X = []
-            for segment in segments:
+            for n, segment in enumerate(segments):
                 X, Y, Z = segment
 
                 star_mask = X ** 2 + Y ** 2 + Z ** 2 <= self.params['RadiusStar'] ** 2
                 interpolated_data = self.interpolator(X, Y, Z)
                 integrand = np.square(interpolated_data[...,self.var_list.index('Rho [g/cm^3]')] / 1.67e-24) * Calculate_flux.G(interpolated_data[...,self.var_list.index('te [K]')], wvl_bin)
-                masked_integrand = np.where(star_mask==False, integrand, 0)
 
                 area_of_star =  np.square(self.params['RadiusStar']) * np.pi
-                solid_angle_array = area_of_star / (X ** 2 + Y ** 2 + Z ** 2)
+                with np.errstate(divide='ignore'):
+                    solid_angle_array = area_of_star / (X ** 2 + Y ** 2 + Z ** 2)
                 fraction_light = 1 - (solid_angle_array / (4*np.pi))
-                masked_integrand *= fraction_light
+                integrand *= fraction_light
+                masked_integrand = np.where(star_mask==False, integrand, 0)
 
-                projection = np.trapz(masked_integrand, X, axis=1)
+                projection = np.trapz(masked_integrand, X, axis=0)
 
-                one_d = np.trapz(projection, Z[:, 0 , :], axis=-1)
+                one_d = np.trapz(projection, Y[0,:,:], axis=0)
                 tot = np.trapz(one_d, Z[0, 0, :])
                 total_X.append(tot)
 
@@ -187,8 +186,8 @@ class star_model():
             # So the fraction light that escapes is 1 - solid_angle/4pi
             fraction_usable_light =  1 - (solid_angle_array / (4*np.pi))
             masked_integrand *= fraction_usable_light
-            two_d = np.trapz(masked_integrand, X, axis=1)
-            one_d = np.trapz(two_d, Z[:, 0, :], axis=-1)
+            two_d = np.trapz(masked_integrand, X, axis=0)
+            one_d = np.trapz(two_d, Y[0,:,:], axis=0)
             self.total_lum= np.trapz(one_d, Z[0, 0, :])
         return self.total_lum
     

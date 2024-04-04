@@ -1,19 +1,17 @@
-# %%
 import numpy as np
 from scipy import interpolate
 
 
 __all__ = ['create_grid', 'rotate_grid']
 
-def create_grid(size, resolution:float|int, type:str):
-    resolution = int(resolution)
+def create_grid(size, npix:float|int, type='linear'):
     if type.lower() == 'linear':
-        x = np.linspace(-size, size, resolution)
-        X, Y, Z = np.meshgrid(x,x,x)
+        x = np.linspace(-size, size, npix)
+        X, Y, Z = np.meshgrid(x,x,x, indexing='ij')
     
     elif type.lower() == 'log':
         # create the positive half
-        x_p = np.geomspace(1, size, resolution//2)
+        x_p = np.geomspace(1, size, npix//2)
         # negative half is just - the positive
         x_n = -1 * x_p
         # Then flip the negative half so it increases and append the positive half
@@ -25,9 +23,9 @@ def create_grid(size, resolution:float|int, type:str):
         if i == 'n' or i.lower() == 'no':
             raise KeyboardInterrupt ('interupted')
         # This spherical grid only returns nans for a reason I am not able to discover,
-        theta = np.linspace(0, np.pi, resolution)
-        phi = np.linspace(0, 2*np.pi, resolution)
-        x = np.linspace(0, (size)**(1/2), resolution) ** 2
+        theta = np.linspace(0, np.pi, npix)
+        phi = np.linspace(0, 2*np.pi, npix)
+        x = np.linspace(0, (size)**(1/2), npix) ** 2
 
         R, T, P = np.meshgrid(x, theta, phi)
         X = R * np.sin(T) * np.cos(P)
@@ -39,16 +37,16 @@ def create_grid(size, resolution:float|int, type:str):
 
 def up_center_res(grid):
     npix = grid[0].shape[0]# The amount of pixels along one dimension of the grid, equal to the pixel_count variable in
-    segments_outer, centers = segment_3dgrid(grid)
+    segments_outer = segment_3dgrid(grid)
   
     # extract the middle cube out of the segments. 
     middle_cube = segments_outer.pop(13)
     middle_cube_X = middle_cube[0]
-    middle_cube_axis = np.linspace(np.min(middle_cube_X), np.max(middle_cube_X), int(1.1 * npix)) # We increase by 1.1 to be able to differentiate by shape
+    middle_cube_axis = np.linspace(np.min(middle_cube_X), np.max(middle_cube_X), int(npix))
 
-    middle_cube_new = tuple(np.meshgrid(middle_cube_axis, middle_cube_axis, middle_cube_axis))
+    middle_cube_new = tuple(np.meshgrid(middle_cube_axis, middle_cube_axis, middle_cube_axis, indexing='ij'))
     segments = segments_outer + [middle_cube_new]
-    return segments, centers
+    return segments
 
 def segment_3dgrid(grid:tuple):
     """This function will segment a 3d grid into 27 smaller grids. These grids are returned in an array where the first
@@ -58,28 +56,21 @@ def segment_3dgrid(grid:tuple):
         grid (tuple): The grid you want to segment
     """
     X, Y, Z = grid
-  
+    x = X[:,0,0]
     segments = []
-    segment_size = X.shape[0] // 3
+    segment_size = (X.shape[0] // 3)
     for i in range(3):
         for j in range(3):
             for k in range(3):
-                X_seg = X[i * segment_size : (i+1) * segment_size, 
-                        j * segment_size : (j+1) * segment_size,
-                        k * segment_size : (k+1) * segment_size]
-                
-                Y_seg = Y[i * segment_size : (i+1) * segment_size, 
-                        j * segment_size : (j+1) * segment_size,
-                        k * segment_size : (k+1) * segment_size]
-                
-                Z_seg = Z[i * segment_size : (i+1) * segment_size, 
-                        j * segment_size : (j+1) * segment_size,
-                        k * segment_size : (k+1) * segment_size]
-                
+                upper_lim_i = (i + 1) * segment_size + 1
+                upper_lim_j = (j + 1) * segment_size + 1
+                upper_lim_k = (k + 1) * segment_size + 1
+                X_seg, Y_seg, Z_seg = np.meshgrid(x[i * segment_size : upper_lim_i], 
+                                                x[j * segment_size : upper_lim_j],
+                                                x[k * segment_size : upper_lim_k], indexing='ij')
                 segments.append((X_seg, Y_seg, Z_seg))
-    xc = np.linspace(np.min(X), np.max(X), 3)
-    segment_centers = np.meshgrid(xc, xc, xc)
-    return segments, segment_centers
+    return segments
+
     
 def rotate_grid(theta:float|int, phi:float|int, grid:tuple):
     X, Y, Z = grid
