@@ -40,11 +40,12 @@ def G(T, wavelength_band:tuple, which_g='', **kwargs):
 
 
 def projection_2d(wvl_bin: tuple, stellar_radius: float, interpolator, var_list: list,
-                                  image_radius=20, pixel_count=100., angle=(0.,0.), grid_type='linear', *args, **kwargs) -> tuple:
+                                  image_radius=5, pixel_count=300, angle=(0.,0.), grid_type='linear', *args, **kwargs) -> tuple:
 
     image_radius *= stellar_radius
     
     if grid_type.lower() == 'segmented':
+        # THERE MIGHT BE A FIX FOR THE BORDER OF THE HIGH RES LOW RES PART.
         # We'll create a whole grid and mask out the middle, and create a seperate middle (Primed) grid
         # which is the size of the masked out part with the same resolution
         (X, Y ,Z), _ = Grid_Operations.create_grid(image_radius, pixel_count, type='linear')
@@ -82,9 +83,9 @@ def projection_2d(wvl_bin: tuple, stellar_radius: float, interpolator, var_list:
         masked_integrand_inner *= fraction_usable_light_inner
         masked_integrand_outer *= fraction_usable_light_outer
 
-        flux_inner = np.trapz(masked_integrand_inner, X_prime, axis=1)
-        flux_outer = np.trapz(masked_integrand_outer, X, axis=1)
-        return (flux_inner, flux_outer), ((Y_prime[:, 0, :], Z_prime[:, 0, :]), (Y[:, 0, :], Z[:, 0, :]))
+        flux_inner = np.trapz(masked_integrand_inner, X_prime, axis=0)
+        flux_outer = np.trapz(masked_integrand_outer, X, axis=0)
+        return (flux_inner, flux_outer), ((Y_prime[0, :, :], Z_prime[0, :, :]), (Y[0, :, :], Z[0, :, :]))
     
     else:
         (X, Y ,Z), _ = Grid_Operations.create_grid(image_radius, pixel_count, type=grid_type)

@@ -65,7 +65,7 @@ def read_model(model_name:str):
     return ds, model_params, star_params
 
 
-def import_data(name:str, interpolate='nearest', full_output=False, verbose=False):
+def import_data(name:str, interpolate: None|str = 'nearest', full_output=False, verbose=False):
     assert type(full_output) == bool
     """This function imports the data of the star given in the name parameter. It uses the files from the model to get the grid into units of cm such that it can be used with CGS
 
@@ -99,8 +99,11 @@ def import_data(name:str, interpolate='nearest', full_output=False, verbose=Fals
     radius_star = star_params['RadiusStar'] * u.R_sun
     star_params['RadiusStar'] = radius_star.to(u.cm).value
     ds_points *= radius_star.to(u.cm).value
-    ds_data = np.stack([ds(name) for name in ds.variables], axis=-1)
 
+    ds_data = np.stack([ds(name) for name in ds.variables], axis=-1)
+    if interpolate == None:
+        return ds_data, ds_points, variable_list, star_params
+    
     if not full_output:
         if interpolate.lower() == 'nearest':
             return NearestNDInterpolator(ds_points, ds_data), variable_list, star_params, None, None, None
@@ -125,7 +128,8 @@ def import_data(name:str, interpolate='nearest', full_output=False, verbose=Fals
                 return NearestNDInterpolator(ds_points, ds_data),  variable_list, star_params, model_params, ds_points, ds_data
         else:
             raise ValueError
-        
+
+
 def block_print():
     sys.stdout = open(os.devnull, 'w')
 

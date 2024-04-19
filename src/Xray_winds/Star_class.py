@@ -19,10 +19,11 @@ class star_model():
     def raw_data(self):
         return load_data.read_model(self.name)
     
-    def projection_figure(self, theta, phi, wavelength_range, **grid_kw):
+    def projection_figure(self, theta, phi, wavelength_range, ax=None, **grid_kw):
         from matplotlib.colors import LogNorm
-        fig, ax = plt.subplots(1,1)
-        # Give the outer edges less resolution because the structures are bigger 
+        if ax == None:
+            plt.gca()
+        # Give the outer edges less resolution because the structures are bigger
         if grid_kw['grid_type'] == 'segmented':
             lums, grids = Calculate_flux.projection_2d(wavelength_range, self.params['RadiusStar'], self.interpolator, self.var_list, angle=(theta, phi), **grid_kw)
             inner_grid, outer_grid = grids[0], grids[1]
@@ -31,12 +32,9 @@ class star_model():
             norm = LogNorm(vmax=vmax ,vmin=vmax/1e6)
 
 
-            outermesh = ax.pcolormesh(outer_grid[0]/self.params['RadiusStar'], outer_grid[1]/self.params['RadiusStar'], outer_lum, norm=norm, shading='gouraud')
-            innermesh = ax.pcolormesh(inner_grid[0]/self.params['RadiusStar'], inner_grid[1]/self.params['RadiusStar'], inner_lum, norm=norm, shading='gouraud')
-            
-            ax.set_xlabel('R')
-            ax.set_ylabel('Rotation axis')
-            fig.colorbar(outermesh)
+            outermesh = ax.pcolormesh(outer_grid[0]/self.params['RadiusStar'], outer_grid[1]/self.params['RadiusStar'], outer_lum, norm=norm, shading='gouraud', rasterized=True)
+            innermesh = ax.pcolormesh(inner_grid[0]/self.params['RadiusStar'], inner_grid[1]/self.params['RadiusStar'], inner_lum, norm=norm, shading='gouraud', rasterized=True)
+            return outermesh
 
         else:
             lum, mesh = Calculate_flux.projection_2d(wavelength_range, self.params['RadiusStar'], self.interpolator, self.var_list, angle=(theta, phi), **grid_kw)
@@ -49,9 +47,9 @@ class star_model():
             fig.colorbar(quadmesh, label='L$_X$ (erg s$^{-1}$ cm$^{-2}$)')
             ax.set_xlabel('R (r$_{star}$)')
             ax.set_ylabel('R (r$_{star}$)')
+            return quadmesh
 
-        return fig, ax
-    def pop_plot_star(self, theta:float|int, phi:float|int, wavelength_range:tuple, save='', **grid_kw) -> None:
+    def pop_plot_star(self, theta:float|int, phi:float|int, wavelength_range:tuple, save='', ax=None, **grid_kw) -> None:
         """Creates a pop plot of the star. This pop plot can be saved if a path is given to the 'save'
         variable. The plot is created by interpolating the whole 
 
@@ -62,6 +60,8 @@ class star_model():
             save (str, optional): Defaults to ''. If not an empty string, the path the figure will be saved too.
         """
         from matplotlib.colors import LogNorm
+        if ax == None:
+            ax = plt.gca()
         if grid_kw['grid_type'] == 'segmented':
             lums, grids = Calculate_flux.projection_2d(wavelength_range, self.params['RadiusStar'], self.interpolator, self.var_list, angle=(theta, phi), **grid_kw)
             inner_grid, outer_grid = grids[0], grids[1]
@@ -69,13 +69,9 @@ class star_model():
             vmax = np.nanmax(lums)
             norm = LogNorm(vmax=vmax ,vmin=vmax/1e6)
 
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
             outermesh = ax.pcolormesh(outer_grid[0]/self.params['RadiusStar'], outer_grid[1]/self.params['RadiusStar'], outer_lum, norm=norm, shading='gouraud', zorder=0, snap=True)
             innermesh = ax.pcolormesh(inner_grid[0]/self.params['RadiusStar'], inner_grid[1]/self.params['RadiusStar'], inner_lum, norm=norm, shading='gouraud', zorder=1, snap=True)
             
-
-            fig.colorbar(innermesh)
             ax.set_xlabel('R')
             ax.set_ylabel('Rotation axis')
 
