@@ -1,10 +1,9 @@
-This package allows the user to read and extract data from .plt files of stellar wind simulations.
+This package allows the user to read and extract data from .plt files of stellar wind simulations, and determine the Xray flux with in the file
 
 
-## Installation
-This package can be installed using pip:
+## Instalation
+After cloning the package in a project directory you can use the following terminal commands to install the package:
 ```bash
-cd <Xray_winds directory>
-pip install .
+cd <project>
+pip install ./Xray_winds 
 ```
-
