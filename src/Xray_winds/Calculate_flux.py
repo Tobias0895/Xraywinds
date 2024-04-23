@@ -15,18 +15,22 @@ def simple_g(T, *args, **kwargs):
 
 def G(T, wavelength_band:tuple, which_g='', **kwargs):
     from scipy.interpolate import interp1d
-    if which_g.lower() == 'simple':
-        return simple_g(T)
-    elif which_g.lower() == 'geom':
-        G_total = np.load('G_(T,L)/G-1e-05_geomwvl.npy')
-        wvl_array = np.load('G_(T,L)/geom-wvl.npy')
-        T_array = np.load('G_(T,L)/temps.npy')
-    else:
-        # Load in the created G function and the corresponding wvl,T grid
-        G_total = np.load('G_(T,L)/G-1e-05.npy')
-        wvl_array = np.load('G_(T,L)/wvl.npy')
-        T_array = np.load('G_(T,L)/temps.npy')
-        
+    try: 
+        if which_g.lower() == 'simple':
+            return simple_g(T)
+        elif which_g.lower() == 'geom':
+            G_total = np.load('G_(T,L)/G-1e-05_geomwvl.npy')
+            wvl_array = np.load('G_(T,L)/geom-wvl.npy')
+            T_array = np.load('G_(T,L)/temps.npy')
+        else:
+            # Load in the created G function and the corresponding wvl,T grid
+            G_total = np.load('G_(T,L)/G-1e-05.npy')
+            wvl_array = np.load('G_(T,L)/wvl.npy')
+            T_array = np.load('G_(T,L)/temps.npy')
+    except FileNotFoundError:
+        print('Creating contribution function')
+        import Contribution_function as Contribution
+        G_total, wvl_array, T_array = Contribution.create_contribution_function(wavelength_band, T)
     # Find the indicies of the closest wavelengths on the grid
     low_wvl_idx = find_nearest(wvl_array, wavelength_band[0])
     high_wvl_idx = find_nearest(wvl_array, wavelength_band[1])

@@ -9,17 +9,18 @@ import Xray_winds.src.Xray_winds.Calculate_flux as Calculate_flux
 
 class star_model():
 
-    def __init__(self, name, interpolation='nearest', verbose=False):
-        self.name = name
-        data = load_data.import_data(self.name, interpolate=interpolation, verbose=verbose)
+    def __init__(self, model_name, interpolation='nearest', verbose=False):
+        self.model_name = model_name
+        self.name = model_name.split('x-')[-1]
+        data = load_data.import_data(self.model_name, interpolate=interpolation, verbose=verbose)
         self.interpolator = data[0] 
         self.var_list = data[1]
         self.params = data[2]
 
     def raw_data(self):
-        return load_data.read_model(self.name)
+        return load_data.read_model(self.model_name)
     
-    def projection_figure(self, theta, phi, wavelength_range, ax=None, **grid_kw):
+    def projection_figure(self, theta, phi, wavelength_range, ax=None, vmax=None, **grid_kw):
         from matplotlib.colors import LogNorm
         if ax == None:
             plt.gca()
@@ -28,10 +29,11 @@ class star_model():
             lums, grids = Calculate_flux.projection_2d(wavelength_range, self.params['RadiusStar'], self.interpolator, self.var_list, angle=(theta, phi), **grid_kw)
             inner_grid, outer_grid = grids[0], grids[1]
             inner_lum, outer_lum = lums[0], lums[1]
-            vmax = np.nanmax(lums)
+            if vmax == None:
+                vmax = np.nanmax(lums)
+            print(vmax)
             norm = LogNorm(vmax=vmax ,vmin=vmax/1e6)
-
-
+            
             outermesh = ax.pcolormesh(outer_grid[0]/self.params['RadiusStar'], outer_grid[1]/self.params['RadiusStar'], outer_lum, norm=norm, shading='gouraud', rasterized=True)
             innermesh = ax.pcolormesh(inner_grid[0]/self.params['RadiusStar'], inner_grid[1]/self.params['RadiusStar'], inner_lum, norm=norm, shading='gouraud', rasterized=True)
             return outermesh
