@@ -31,7 +31,6 @@ class star_model():
             inner_lum, outer_lum = lums[0], lums[1]
             if vmax == None:
                 vmax = np.nanmax(lums)
-            print(vmax)
             norm = LogNorm(vmax=vmax ,vmin=vmax/1e6)
             
             outermesh = ax.pcolormesh(outer_grid[0]/self.params['RadiusStar'], outer_grid[1]/self.params['RadiusStar'], outer_lum, norm=norm, shading='gouraud', rasterized=True)

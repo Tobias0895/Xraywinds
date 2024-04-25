@@ -54,6 +54,7 @@ def projection_2d(wvl_bin: tuple, stellar_radius: float, interpolator, var_list:
         # which is the size of the masked out part with the same resolution
         (X, Y ,Z), _ = Grid_Operations.create_grid(image_radius, pixel_count, type='linear')
         (X_prime, Y_prime, Z_prime), _ = Grid_Operations.create_grid(image_radius/3, pixel_count, type='linear')
+        
         X_rot, Y_rot, Z_rot = Grid_Operations.rotate_grid(angle[0], angle[1], (X, Y ,Z))
         Xprime_rot, Yprime_rot, Zprime_rot = Grid_Operations.rotate_grid(angle[0], angle[1], (X_prime, Y_prime ,Z_prime))
 
