@@ -1,11 +1,8 @@
-# import Xray_winds.load_data as load_data
 import matplotlib.pyplot as plt
 import numpy as np
-import matplotlib as mpl
-# import Xray_winds.Calculate_flux as Calculate_flux
-import Xray_winds.src.Xray_winds.load_data as load_data
-import Xray_winds.src.Xray_winds.Grid_Operations as Grid_Operations
-import Xray_winds.src.Xray_winds.Calculate_flux as Calculate_flux
+import Xray_winds.load_data as load_data
+import Xray_winds.Grid_Operations as Grid_Operations
+import Xray_winds.Calculate_flux as Calculate_flux
 
 class star_model():
 
@@ -29,6 +26,7 @@ class star_model():
             lums, grids = Calculate_flux.projection_2d(wavelength_range, self.params['RadiusStar'], self.interpolator, self.var_list, angle=(theta, phi), **grid_kw)
             inner_grid, outer_grid = grids[0], grids[1]
             inner_lum, outer_lum = lums[0], lums[1]
+            
             if vmax == None:
                 vmax = np.nanmax(lums)
             norm = LogNorm(vmax=vmax ,vmin=vmax/1e6)

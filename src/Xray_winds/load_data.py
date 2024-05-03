@@ -99,7 +99,6 @@ def import_data(name:str, interpolate: None|str = 'nearest', full_output=False, 
     radius_star = star_params['RadiusStar'] * u.R_sun
     star_params['RadiusStar'] = radius_star.to(u.cm).value
     ds_points *= radius_star.to(u.cm).value
-
     ds_data = np.stack([ds(name) for name in ds.variables], axis=-1)
     if interpolate == None:
         return ds_data, ds_points, variable_list, star_params

@@ -1,6 +1,6 @@
 import numpy as np
 from tqdm import tqdm
-import Xray_winds.src.Xray_winds.Grid_Operations as Grid_Operations
+import Xray_winds.Grid_Operations as Grid_Operations
 
 __all__ = ['find_nearest', 'simple_g', 'G', 'projection_2d', 'total_lum_wvl_bin',
            'create_list_of_tuples', 'create_spectra']
@@ -54,7 +54,6 @@ def projection_2d(wvl_bin: tuple, stellar_radius: float, interpolator, var_list:
         # which is the size of the masked out part with the same resolution
         (X, Y ,Z), _ = Grid_Operations.create_grid(image_radius, pixel_count, type='linear')
         (X_prime, Y_prime, Z_prime), _ = Grid_Operations.create_grid(image_radius/3, pixel_count, type='linear')
-        
         X_rot, Y_rot, Z_rot = Grid_Operations.rotate_grid(angle[0], angle[1], (X, Y ,Z))
         Xprime_rot, Yprime_rot, Zprime_rot = Grid_Operations.rotate_grid(angle[0], angle[1], (X_prime, Y_prime ,Z_prime))
 
@@ -67,7 +66,6 @@ def projection_2d(wvl_bin: tuple, stellar_radius: float, interpolator, var_list:
             * (-image_radius/3 < X) * (-image_radius/3 < Y) * (-image_radius/3 < Z)
         interpolated_inner = interpolator(Xprime_rot, Yprime_rot, Zprime_rot)
         interpolated_outer = interpolator(X_rot, Y_rot, Z_rot)
-
         integrand_inner = np.square(interpolated_inner[...,var_list.index('Rho [g/cm^3]')] / 1.67e-24) * G(interpolated_inner[...,var_list.index('te [K]')], wvl_bin, *args, **kwargs)
         integrand_outer = np.square(interpolated_outer[...,var_list.index('Rho [g/cm^3]')] / 1.67e-24) * G(interpolated_outer[...,var_list.index('te [K]')], wvl_bin, *args, **kwargs)
         
@@ -87,7 +85,6 @@ def projection_2d(wvl_bin: tuple, stellar_radius: float, interpolator, var_list:
 
         masked_integrand_inner *= fraction_usable_light_inner
         masked_integrand_outer *= fraction_usable_light_outer
-
         flux_inner = np.trapz(masked_integrand_inner, X_prime, axis=0)
         flux_outer = np.trapz(masked_integrand_outer, X, axis=0)
         return (flux_inner, flux_outer), ((Y_prime[0, :, :], Z_prime[0, :, :]), (Y[0, :, :], Z[0, :, :]))
