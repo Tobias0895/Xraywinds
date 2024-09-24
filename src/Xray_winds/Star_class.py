@@ -1,37 +1,73 @@
-# import Xray_winds.load_data as load_data
 import matplotlib.pyplot as plt
 import numpy as np
+import Xray_winds.load_data as load_data
+import Xray_winds.Grid_Operations as Grid_Operations
+import Xray_winds.Calculate_flux as Calculate_flux
 import matplotlib as mpl
-# import Xray_winds.Calculate_flux as Calculate_flux
-import Xray_winds.src.Xray_winds.load_data as load_data
-import Xray_winds.src.Xray_winds.Grid_Operations as Grid_Operations
-import Xray_winds.src.Xray_winds.Calculate_flux as Calculate_flux
 
 class star_model():
 
-    def __init__(self, name, interpolation='nearest', verbose=False):
-        self.name = name
-        data = load_data.import_data(self.name, interpolate=interpolation, verbose=verbose)
-        self.interpolator = data[0] 
-        self.var_list = data[1]
-        self.params = data[2]
+    def __init__(self, model_name: str, interpolation='nearest', verbose=False):
+        self.model_name = model_name
+        self.name = model_name.split('x-')[-1]
+        self.data = load_data.import_data(self.model_name, interpolate=interpolation, verbose=verbose)
+        self.interpolator = self.data[0] 
+        self.var_list = self.data[1]
+        self.params = self.data[2]
 
     def raw_data(self):
-        return load_data.read_model(self.name)
+        """This function returns the 'raw' data from the models.
+        """
+        return load_data.read_model(self.model_name)
     
-    def projection_figure(self, theta, phi, wavelength_range, ax=None, **grid_kw):
+    def euclidian_grid(self, size, npix, grid_type='linear'):
+        """_summary_
+
+        Args:
+            size (_type_): _description_
+            npix (_type_): _description_
+            grid_type (str, optional): _description_. Defaults to 'linear'.
+
+        Returns:
+            _type_: _description_
+        """
+        (X, Y, Z), _ = Grid_Operations.create_grid(size * self.params['RadiusStar'], npix)
+        return (X, Y, Z), self.interpolator(X, Y, Z)
+            
+
+    def projection_figure(self, theta, phi, wavelength_range, ax=None, vmax=None, vmin=None, **grid_kw):
+        """ Makes a figure with the 2d projection using the projection_2d function of Calculate_flux.py of a stellar wind. The wavelength range, angle, and the vmin-vmax of the colorbar are customizable.
+        grid_kw the options of the grid such as the size and resolution are customizable. The grid can be used in segmentation mode, then there will be two pcolormesh objects plotted over eachother. 
+
+        Args:
+            theta (float): Azimuthal rotation in radians
+            phi (float): Polar rotation angle in radians
+            wavelength_range (tuple): Contains the lower and upper wavelengths between which the projection should be generated
+            ax (mpl.Axes.axes, optional): The axis on which the projection should be made, if None, a new axes object on which the projection will be made. Defaults to None.
+            vmax (float, optional): The minum value of the colorbar, if None the max Irradiance value of the projection will be used. Defaults to None.
+            vmin (float, optional): The maximum value of the colorbar, if None vmin = vmax / 1e6. Defaults to None.
+
+        Returns:
+            matplotlib.collection.Quadmesh: The quadmesh object of the pcolormesh
+        """
         from matplotlib.colors import LogNorm
         if ax == None:
             plt.gca()
+        if grid_kw['segment_size'] == 1:
+            grid_kw['grid_type'] = 'linear'
         # Give the outer edges less resolution because the structures are bigger
         if grid_kw['grid_type'] == 'segmented':
             lums, grids = Calculate_flux.projection_2d(wavelength_range, self.params['RadiusStar'], self.interpolator, self.var_list, angle=(theta, phi), **grid_kw)
             inner_grid, outer_grid = grids[0], grids[1]
             inner_lum, outer_lum = lums[0], lums[1]
-            vmax = np.nanmax(lums)
-            norm = LogNorm(vmax=vmax ,vmin=vmax/1e6)
-
-
+            
+            if vmax == None:
+                vmax = np.nanmax(lums)
+            if vmin == None:
+                vmin = vmax / 1e6
+            assert vmin < vmax
+            norm = LogNorm(vmax=vmax ,vmin=vmin)
+            
             outermesh = ax.pcolormesh(outer_grid[0]/self.params['RadiusStar'], outer_grid[1]/self.params['RadiusStar'], outer_lum, norm=norm, shading='gouraud', rasterized=True)
             innermesh = ax.pcolormesh(inner_grid[0]/self.params['RadiusStar'], inner_grid[1]/self.params['RadiusStar'], inner_lum, norm=norm, shading='gouraud', rasterized=True)
             return outermesh
@@ -39,16 +75,16 @@ class star_model():
         else:
             lum, mesh = Calculate_flux.projection_2d(wavelength_range, self.params['RadiusStar'], self.interpolator, self.var_list, angle=(theta, phi), **grid_kw)
             mesh = (mesh[0]/self.params['RadiusStar'], mesh[1]/self.params["RadiusStar"])
-            vmax = np.nanmax(lum)
+            if vmax == None:
+                vmax = np.nanmax(lum)
+
+            if vmin == None:
+                vmin = vmax / 1e6
             norm = LogNorm(vmax=vmax, vmin=vmax/1e6, clip=True)
             quadmesh = ax.pcolormesh(mesh[0], mesh[1], lum, 
-                                    norm=norm)
-            
-            fig.colorbar(quadmesh, label='L$_X$ (erg s$^{-1}$ cm$^{-2}$)')
-            ax.set_xlabel('R (r$_{star}$)')
-            ax.set_ylabel('R (r$_{star}$)')
+                                    norm=norm, rasterized=True)
             return quadmesh
-
+    
     def pop_plot_star(self, theta:float|int, phi:float|int, wavelength_range:tuple, save='', ax=None, **grid_kw) -> None:
         """Creates a pop plot of the star. This pop plot can be saved if a path is given to the 'save'
         variable. The plot is created by interpolating the whole 
@@ -58,6 +94,9 @@ class star_model():
             phi (float | int): Azimuthal angle (East/west rotation)
             wavelength_range (tuple): The wavelengths between the emission is calculated.
             save (str, optional): Defaults to ''. If not an empty string, the path the figure will be saved too.
+
+        return:
+            None: Just a popup plot of the star
         """
         from matplotlib.colors import LogNorm
         if ax == None:
@@ -96,11 +135,26 @@ class star_model():
             plt.show()
 
     def spectrum(self, wvl_range:tuple, spec_res:int|float, **spec_kwargs) -> tuple:
+        """Generates a spectrum of the stellar wind
+
+        Args:
+            wvl_range (tuple): The spectral wavelength range
+            spec_res (int | float): The 'Spectral resolution' The amount of bins to describe the spectrum
+
+        Returns:
+            tuple: Containing the wavelength array and flux array
+        """
         wvl, spectrum = Calculate_flux.create_spectra(wvl_range, spec_res, stellar_radius=self.params['RadiusStar'], interpolator=self.interpolator,
                                                     var_list=self.var_list, **spec_kwargs)
         return wvl, spectrum
     
     def spectrum_pop_plot(self, wvl_range:tuple|str, spec_res:int|float,  **spec_kwargs):
+        """Simmilar to 'spectrum' but instead of return makes a popup plot
+
+        Args:
+            wvl_range (tuple | str): _description_
+            spec_res (int | float): _description_
+        """
         if wvl_range.lower() == 'complete': # type: igonore
             wvl, spec = self.spectrum((0.1, 180), spec_res, **spec_kwargs)
         else:
@@ -194,6 +248,18 @@ class star_model():
         pass
 
     def make_movie(self, duration:float, include_lightcurve:bool, wvl_range=(0.1, 20), name='No_name', grid_kw={}, **lc_kwargs) -> None:
+        """Used to make a movie of the star as it rotates around a specified axis. Optionally a lightcurve can be included
+
+        Args:
+            duration (float): _description_
+            include_lightcurve (bool): _description_
+            wvl_range (tuple, optional): _description_. Defaults to (0.1, 20).
+            name (str, optional): _description_. Defaults to 'No_name'.
+            grid_kw (dict, optional): _description_. Defaults to {}.
+
+        Returns:
+            _type_: _description_
+        """
         import make_movie
         from moviepy.editor import VideoClip
         from moviepy.video.io.bindings import mplfig_to_npimage
@@ -252,9 +318,3 @@ class star_model():
         else:
             movie = VideoClip(make_rotation_frame, duration=duration)
             movie.write_gif(f"Movies/{name}.gif", fps=15)
-
-
-if __name__ == "__main__":
-    name = '1x-MEL25-005'
-    star = star_model(name)
-    star.make_movie(5, True, (0.1, 20), name=f'{name}-Rotation+lightcurve', grid_kw={'pixel_count': 250, 'image_radius': 3})

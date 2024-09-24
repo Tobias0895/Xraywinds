@@ -1,32 +1,56 @@
 import numpy as np
 from tqdm import tqdm
-import Xray_winds.src.Xray_winds.Grid_Operations as Grid_Operations
+import Xray_winds.Grid_Operations as Grid_Operations
 
-__all__ = ['find_nearest', 'simple_g', 'G', 'projection_2d', 'total_lum_wvl_bin',
+__all__ = ['find_nearest', 'simple_g', 'G', 'projection_2d', 'projection_to_total_lum', 
            'create_list_of_tuples', 'create_spectra']
 
 def find_nearest(array, value):
+    """ This function finds the index of the array with the value closest to value.
+
+    Args:
+        array (array): The array
+        value (int|float): The value you want to find the nearest of
+
+    Returns:
+        lowest_idx: tje index of the value in the array closest to value
+    """    
     array = np.asarray(array)
     lowest_idx = abs(array - value).argmin()
     return lowest_idx
 
 def simple_g(T, *args, **kwargs):
+
     return np.where((T >=1e6) * (T <= 1e7), 1, 0)
 
 def G(T, wavelength_band:tuple, which_g='', **kwargs):
+    """ Represents the contribution function. If there is no contribution function file found, it will create one. 
+
+    Args:
+        T (Array): an array of temperature values
+        wavelength_band (tuple): The lower and upper bound of the wavelength band
+        which_g (str, optional): If simple it uses the above simple_g function which returns where the temperature of the model is between 1e6 and 1e7. Defaults to ''.
+
+    Returns:
+        Array: This array contains the contribution function integrated over the wavelength band.
+    """
     from scipy.interpolate import interp1d
-    if which_g.lower() == 'simple':
-        return simple_g(T)
-    elif which_g.lower() == 'geom':
-        G_total = np.load('G_(T,L)/G-1e-05_geomwvl.npy')
-        wvl_array = np.load('G_(T,L)/geom-wvl.npy')
-        T_array = np.load('G_(T,L)/temps.npy')
-    else:
-        # Load in the created G function and the corresponding wvl,T grid
-        G_total = np.load('G_(T,L)/G-1e-05.npy')
-        wvl_array = np.load('G_(T,L)/wvl.npy')
-        T_array = np.load('G_(T,L)/temps.npy')
-        
+    try: 
+        if which_g.lower() == 'simple':
+            return simple_g(T)
+        elif which_g.lower() == 'geom':
+            G_total = np.load('G_(T,L)/G-1e-05_geomwvl.npy')
+            wvl_array = np.load('G_(T,L)/geom-wvl.npy')
+            T_array = np.load('G_(T,L)/temps.npy')
+        else:
+            # Load in the created G function and the corresponding wvl,T grid
+            G_total = np.load('G_(T,L)/G-1e-05.npy')
+            wvl_array = np.load('G_(T,L)/wvl.npy')
+            T_array = np.load('G_(T,L)/temps.npy')
+    except FileNotFoundError:
+        print('Creating contribution function')
+        import Contribution_function as Contribution
+        G_total, wvl_array, T_array = Contribution.create_contribution_function(wavelength_band, T)
     # Find the indicies of the closest wavelengths on the grid
     low_wvl_idx = find_nearest(wvl_array, wavelength_band[0])
     high_wvl_idx = find_nearest(wvl_array, wavelength_band[1])
@@ -40,16 +64,35 @@ def G(T, wavelength_band:tuple, which_g='', **kwargs):
 
 
 def projection_2d(wvl_bin: tuple, stellar_radius: float, interpolator, var_list: list,
-                                  image_radius=5, pixel_count=300, angle=(0.,0.), grid_type='linear', *args, **kwargs) -> tuple:
+                                  image_radius=5, pixel_count=300, angle=(0.,0.), grid_type='linear', segment_size=1/3, *args, **kwargs) -> tuple:
+    """ Creates a 2d image of the stellar wind
+
+    Args:
+        wvl_bin (tuple): Contains the lower and upper wavelengths between which the projection should be generated
+        stellar_radius (float): The radius of the star in cm
+        interpolator (Scipy interpolator): Interpolator object that is generated when the data is loaded in with the raw model
+        var_list (list): The list of variables available in the model
+        image_radius (int, optional): How much of the model the image should contain, i.e the image will be image_radius x image_radius. Defaults to 5.
+        pixel_count (int, optional): How pixels should be along one axis. Defaults to 300.
+        angle (tuple, optional): Containing the azimuthal and polar angle. Defaults to (0.,0.).
+        grid_type (str, optional): The type of grid used, if linear the grid will have the same resolution at each radius. If segmented, the image will have a higher reslution in the center the size of
+        image_radius * segment_size. Defaults to 'linear'.
+        segment_size (_type_, optional): _description_. Defaults to 1/3.
+
+    Returns:
+        tuple: _description_
+    """
 
     image_radius *= stellar_radius
-    
+    if float(segment_size) == 1:
+        grid_type = 'linear'
+        
     if grid_type.lower() == 'segmented':
         # THERE MIGHT BE A FIX FOR THE BORDER OF THE HIGH RES LOW RES PART.
         # We'll create a whole grid and mask out the middle, and create a seperate middle (Primed) grid
         # which is the size of the masked out part with the same resolution
         (X, Y ,Z), _ = Grid_Operations.create_grid(image_radius, pixel_count, type='linear')
-        (X_prime, Y_prime, Z_prime), _ = Grid_Operations.create_grid(image_radius/3, pixel_count, type='linear')
+        (X_prime, Y_prime, Z_prime), _ = Grid_Operations.create_grid(image_radius * segment_size, pixel_count, type='linear')
         X_rot, Y_rot, Z_rot = Grid_Operations.rotate_grid(angle[0], angle[1], (X, Y ,Z))
         Xprime_rot, Yprime_rot, Zprime_rot = Grid_Operations.rotate_grid(angle[0], angle[1], (X_prime, Y_prime ,Z_prime))
 
@@ -58,30 +101,15 @@ def projection_2d(wvl_bin: tuple, stellar_radius: float, interpolator, var_list:
         mask_shadow = (Y_prime ** 2 + Z_prime ** 2 <= stellar_radius ** 2) * (X_prime < 0)
         inner_mask = mask_star + mask_shadow
         
-        inner_masked_in_outer =  (X < image_radius/3) * (Y < image_radius/3) * (Z < image_radius/3) \
-            * (-image_radius/3 < X) * (-image_radius/3 < Y) * (-image_radius/3 < Z)
+        inner_masked_in_outer =  (X <= image_radius * segment_size) * (Y <= image_radius * segment_size) * (Z <= image_radius * segment_size) \
+            * (-image_radius * segment_size <= X) * (-image_radius * segment_size <= Y) * (-image_radius * segment_size <= Z)
         interpolated_inner = interpolator(Xprime_rot, Yprime_rot, Zprime_rot)
         interpolated_outer = interpolator(X_rot, Y_rot, Z_rot)
-
         integrand_inner = np.square(interpolated_inner[...,var_list.index('Rho [g/cm^3]')] / 1.67e-24) * G(interpolated_inner[...,var_list.index('te [K]')], wvl_bin, *args, **kwargs)
         integrand_outer = np.square(interpolated_outer[...,var_list.index('Rho [g/cm^3]')] / 1.67e-24) * G(interpolated_outer[...,var_list.index('te [K]')], wvl_bin, *args, **kwargs)
         
         masked_integrand_outer = np.where(inner_masked_in_outer==False, integrand_outer, 0)
         masked_integrand_inner = np.where(inner_mask==False, integrand_inner, 0)
-
-        # We want to take into account that light that goes towards the star can't be accounted fors
-        Area_of_star = np.square(stellar_radius) * np.pi 
-        # Creating an array in the shape of the data to calculate the solid angle of the star at each point
-        solid_angle_array_outer = Area_of_star / (X_rot**2 + Y_rot**2 + Z_rot**2)
-        solid_angle_array_inner = Area_of_star / (Xprime_rot**2 + Yprime_rot**2 + Zprime_rot**2)
-
-        # The fraction of the sky taken up by the star at a point is then solid_angle / 4pi
-        # So the fraction light that escapes is 1 - solid_angle/4pi
-        fraction_usable_light_outer = 1 - (solid_angle_array_outer / (4*np.pi))
-        fraction_usable_light_inner = 1 - (solid_angle_array_inner / (4*np.pi))
-
-        masked_integrand_inner *= fraction_usable_light_inner
-        masked_integrand_outer *= fraction_usable_light_outer
 
         flux_inner = np.trapz(masked_integrand_inner, X_prime, axis=0)
         flux_outer = np.trapz(masked_integrand_outer, X, axis=0)
@@ -100,22 +128,21 @@ def projection_2d(wvl_bin: tuple, stellar_radius: float, interpolator, var_list:
         integrand = np.square(interpolated_data[...,var_list.index('Rho [g/cm^3]')] / 1.67e-24) * G(interpolated_data[...,var_list.index('te [K]')], wvl_bin, *args, **kwargs)
         masked_integrand = np.where(mask==False, integrand, 0)
 
-        # We want to take into account that light that goes towards the star can't be accounted fors
-        Area_of_star = np.square(stellar_radius) * np.pi 
-        # Creating an array in the shape of the data to calculate the solid angle of the star at each point
-        solid_angle_array = Area_of_star / (X_rot**2 + Y_rot**2 + Z_rot**2)
-
-        # The fraction of the sky taken up by the star at a point is then solid_angle / 4pi
-        # So the fraction light that escapes is 1 - solid_angle/4pi
-        fraction_usable_light =  1 - (solid_angle_array / (4*np.pi))
-        # print(solid_angle_array)
-        masked_integrand *= fraction_usable_light
-
         # Now we integrate along the line of sight
-        total_flux = np.trapz(masked_integrand, X, axis=1)
-        return total_flux, (Y[:, 0, :], Z[:, 0, :])
+        total_flux = np.trapz(masked_integrand, X, axis=0)
+        return total_flux, (Y[0, :, :], Z[0, :, :])
     
 def projection_to_total_lum(wvl_bin:tuple, stellar_radius, interpolator, *args, **kwargs) -> float:
+    """ Converts the projection from projection_2d to a total luminosity
+
+    Args:
+        wvl_bin (tuple):  Contains the lower and upper wavelengths between which the projection should be generated
+        stellar_radius (_type_): The radius of the star in cm
+        interpolator (_type_): Interpolator object that is generated when the data is loaded in with the raw model.
+
+    Returns:
+        float: _description_
+    """
     LoS_flux, mesh = projection_2d(wvl_bin, stellar_radius, interpolator=interpolator, *args, **kwargs)
     integrate_axis1 = np.trapz(LoS_flux, mesh[1], axis=-1)
     # Then integrate along the other to get a single value

@@ -73,6 +73,16 @@ def segment_3dgrid(grid:tuple):
 
     
 def rotate_grid(theta:float|int, phi:float|int, grid:tuple):
+    """Rotates a 3d grid by theta degrees around the X-axis and then phi degrees around the Y axis
+
+    Args:
+        theta (float | int): _description_
+        phi (float | int): _description_
+        grid (tuple): _description_
+
+    Returns:
+        _type_: _description_
+    """
     X, Y, Z = grid
 
     # First rotate around Z-axis (Theta)
@@ -105,58 +115,3 @@ def fibonacci_sphere(radius: float, num_points: int):
     x = radius * np.cos(theta) * r
 
     return (x,y,z)
-
-# %%
-if __name__ == '__main__':
-    import load_data
-    from Calculate_flux import G
-    import scipy.interpolate as interpolate
-    import matplotlib.pyplot as plt
-    import os
-
-
-    
-    names = [i for i in os.listdir(os.environ['FMPdata']) if i[0] != '.']
-    names = ['1x-PWAnd']
-    contributions_star = []
-    radiis = np.linspace(1, 250, 50)
-    for name in names:
-        interpolator, var_list, params, _, ds_points, _ = load_data.import_data(name, interpolate='nearest', full_output=True)
-        radii = radiis * params['RadiusStar']
-        dr = np.diff(radii)[0]
-
-        (X, Y, Z), x = create_grid(250 * params['RadiusStar'], 200, type='linear')
-        mask_star = X ** 2 + Y ** 2 + Z ** 2 <= params['RadiusStar'] ** 2
-
-        interpolated_data = interpolator(X, Y ,Z)
-
-        integrand = np.square(interpolated_data[...,var_list.index('Rho [g/cm^3]')] / 1.67e-24) * G(interpolated_data[...,var_list.index('te [K]')], (0.1, 180))
-        masked_integrand = np.where(mask_star==False, integrand, 0)
-        contributions = []
-        contributions_star.append(contributions)
-
-        for r in radii:
-            u,v,w = fibonacci_sphere(r, 500)
-    
-            tobi = interpolate.interpn((x,x,x), masked_integrand, (u,v,w))
-            contributions.append(np.mean(tobi) * 4 * np.pi * np.square(r) * dr) # the 4pir^2 dr to account for the volume added
-
-
-        
-        total_contribution = np.trapz(contributions, radii)
-# %%
-
-# %%
-if __name__ == '__main__':
-    con = np.log10(contributions_star)
-    
-    mean_con = np.mean(con, axis=0)
-    std_con = np.std(con, axis=0)
-    plt.plot(radiis, mean_con, label='Mean Contribution', c='k')
-    plt.fill_between(radiis, mean_con - std_con, mean_con + std_con, alpha=0.2, color='k', label='1 Std contribution')
-    plt.legend()
-    plt.xlabel('Radius (r$_{star}$)')
-    plt.ylabel('Log Lx (erg s$^{}$)')
-    
-    # plt.savefig('mean_radial_contributions.pdf', dpi=50, bbox_inches='tight')
-    plt.show()
